@@ -1,4 +1,4 @@
-"""Шаг 0. Ценовая таблица: вес из наименований + цена за кг из прайса сети."""
+
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.pricing import build_price_table
