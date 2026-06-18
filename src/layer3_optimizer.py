@@ -1,7 +1,5 @@
 """
 Слой 3 — оптимизатор промо.
-Экономика на основе причинной кривой (Слой 2) и реальных цен; выбор скидок
-целочисленным программированием при ограничениях; честная off-policy оценка.
 """
 import numpy as np
 import pandas as pd
@@ -9,10 +7,7 @@ import pandas as pd
 from config import (COL_SKU, COL_CLIENT, COL_CAT, GRID, COST_SHARE,
                     SLOTS, KMAX, ROBUST, PRICE_TABLE_XLSX)
 
-
-# ----------------------------------------------------------------- подготовка цен и базы
 def attach_prices(panel: pd.DataFrame, price_xlsx=PRICE_TABLE_XLSX):
-    """Добавляет к панели цену входа за штуку и группу из таблицы цен."""
     pr = pd.read_excel(price_xlsx, sheet_name="Цены по SKU")
     pr["Артикул"] = pr["Артикул"].astype(str)
     P = pr.set_index("Артикул")
@@ -23,16 +18,13 @@ def attach_prices(panel: pd.DataFrame, price_xlsx=PRICE_TABLE_XLSX):
 
 
 def baseline_table(panel: pd.DataFrame):
-    """Базовый месячный объём SKU вне промо + цена + категория + группа."""
     base = (panel[panel.own_disc == 0].groupby(COL_SKU)
             .agg(base_qty=("qty", "median"), cat=(COL_CAT, "first"),
                  group=("group", "first"), price_unit=("price_unit", "first")).reset_index())
     return base[base["price_unit"].notna() & (base["base_qty"] > 0)].copy()
 
 
-# ----------------------------------------------------------------- экономика
 def make_econ(theta_cat: dict, theta_glob: float, cost_share=COST_SHARE):
-    """Замыкание econ(bq,pu,cat,d,which) -> (вклад, выручка, бюджет_скидки)."""
     def uplift(cat, d, which="point"):
         t = theta_cat.get(cat, (theta_glob, theta_glob, theta_glob))
         th = t[0] if which == "point" else t[1]
@@ -48,7 +40,6 @@ def make_econ(theta_cat: dict, theta_glob: float, cost_share=COST_SHARE):
 
 
 def candidates(base: pd.DataFrame, econ, grid=GRID):
-    """Все варианты (SKU × скидка) с вкладом/выручкой/бюджетом и робастным вкладом."""
     rows = []
     for _, r in base.iterrows():
         for d in grid:
@@ -58,10 +49,7 @@ def candidates(base: pd.DataFrame, econ, grid=GRID):
                              net=c, net_robust=c_lo, rev=rev, spend=sp))
     return pd.DataFrame(rows)
 
-
-# ----------------------------------------------------------------- оптимизатор
 def optimize(cand: pd.DataFrame, budget, slots=SLOTS, kmax=KMAX, robust=ROBUST):
-    """Целочисленное программирование (PuLP), иначе жадный. -> (plan, method)."""
     obj = "net_robust" if robust else "net"
     pos = cand[(cand.d > 0) & (cand[obj] > 0)].reset_index(drop=True)
     try:
@@ -90,7 +78,6 @@ def optimize(cand: pd.DataFrame, budget, slots=SLOTS, kmax=KMAX, robust=ROBUST):
 
 
 def off_policy(panel: pd.DataFrame, base: pd.DataFrame, econ):
-    """Историческая политика (средняя фактическая скидка). -> (hist_spend, hist_contrib)."""
     hist = (panel[panel.own_disc > 0].groupby(COL_SKU)
             .agg(d=("own_disc", "mean"), cat=(COL_CAT, "first")).reset_index()
             .merge(base[[COL_SKU, "base_qty", "price_unit"]], on=COL_SKU, how="inner"))
