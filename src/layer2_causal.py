@@ -1,8 +1,7 @@
 """
 Слой 2 — причинная оценка отклика спроса на скидку.
 Double ML (кросс-фиттинг), гетерогенность по категориям (CATE),
-причинная кривая доза-отклик (линейная + нелинейная Робинсона),
-конформные интервалы, обратная задача и плацебо-проверка.
+причинная кривая доза-отклик, конформные интервалы, обратная задача и плацебо-проверка.
 """
 import numpy as np
 import pandas as pd
@@ -13,9 +12,7 @@ from config import (COL_SKU, COL_CAT, RANDOM_STATE, DML_FOLDS, GRID, TEST_MONTHS
 from src.features import add_features, SEASON_COLS, LAG_COLS
 
 
-# ----------------------------------------------------------------- матрицы
 def build_design(panel_feat: pd.DataFrame, emb_cols=None, t_col="own_disc"):
-    """Возвращает (Y, T, W, sku). W = сезон + лаги + эмбеддинги + категория (без производных лечения)."""
     emb_cols = emb_cols or [c for c in panel_feat.columns if c.startswith("emb_")]
     cat_dum = pd.get_dummies(panel_feat[COL_CAT].astype(str), prefix="cat")
     W = pd.concat([panel_feat[SEASON_COLS + LAG_COLS + emb_cols].reset_index(drop=True),
@@ -26,9 +23,8 @@ def build_design(panel_feat: pd.DataFrame, emb_cols=None, t_col="own_disc"):
     return Y, T, W, sku
 
 
-# ----------------------------------------------------------------- Double ML (PLR)
+# Double ML (PLR)
 def dml_plr(Y, T, Wdf, cluster, nfold=DML_FOLDS, seed=RANDOM_STATE):
-    """Частично-линейная модель: кросс-фиттинг + кластерные SE. -> (theta, se, p, lo, hi)."""
     Wv = Wdf.values if hasattr(Wdf, "values") else np.asarray(Wdf)
     n = len(Y); kf = KFold(nfold, shuffle=True, random_state=seed)
     Yr = np.zeros(n); Tr = np.zeros(n)
@@ -54,7 +50,6 @@ def dml_plr(Y, T, Wdf, cluster, nfold=DML_FOLDS, seed=RANDOM_STATE):
 
 
 def cate_by_category(Y, T, W, sku, cats, min_rows=400, min_treated=60):
-    """Эффект скидки по категориям (DML на подвыборках)."""
     rows = []
     for c in pd.unique(cats):
         m = (cats == c)
@@ -65,17 +60,14 @@ def cate_by_category(Y, T, W, sku, cats, min_rows=400, min_treated=60):
     return pd.DataFrame(rows).sort_values("theta", ascending=False).reset_index(drop=True)
 
 
-# ----------------------------------------------------------------- доза-отклик
+# доза-отклик
 def _hinge(t):
     t = np.asarray(t, float)
     return np.column_stack([t, np.maximum(t - 10, 0), np.maximum(t - 20, 0)])
 
 
 def dose_response(Y, T, W, sku, theta, lo, hi, grid=None, nboot=200, seed=RANDOM_STATE):
-    """
-    Линейная кривая из среднего DML и нелинейная (Робинсон, сплайн) с бутстрэп-CI.
-    Возвращает DataFrame: grid, lin, lin_lo, lin_hi, nl, nl_lo, nl_hi (приросты в %).
-    """
+
     grid = np.array(grid if grid is not None else GRID + [35, 40], float)
     lin    = (np.exp(theta * grid) - 1) * 100
     lin_lo = (np.exp(lo * grid) - 1) * 100
@@ -104,7 +96,6 @@ def dose_response(Y, T, W, sku, theta, lo, hi, grid=None, nboot=200, seed=RANDOM
 
 
 def inverse_discount(curve_df, boot, targets=(10, 20, 30, 50)):
-    """Какая скидка нужна для целевого прироста +N% (из нелинейной причинной кривой)."""
     grid = curve_df["grid"].values; point = curve_df["nl"].values
     out = []
     for t in targets:
@@ -117,7 +108,7 @@ def inverse_discount(curve_df, boot, targets=(10, 20, 30, 50)):
     return pd.DataFrame(out)
 
 
-# ----------------------------------------------------------------- неопределённость
+# неопределённость
 def conformal_coverage(panel_feat, W, t_col="own_disc", test_months=TEST_MONTHS, seed=RANDOM_STATE):
     """Split-conformal 90%-интервал: фактическое покрытие и полуширина на отложенных месяцах."""
     months = np.sort(panel_feat["month"].unique())
@@ -134,9 +125,8 @@ def conformal_coverage(panel_feat, W, t_col="own_disc", test_months=TEST_MONTHS,
     return float(cover), float(q)
 
 
-# ----------------------------------------------------------------- валидация
+# валидация
 def placebo_test(Y, T, W, sku, seed=RANDOM_STATE):
-    """Перемешиваем лечение: эффект должен исчезнуть. -> (theta, lo, hi)."""
     rng = np.random.RandomState(seed)
     th, _, _, lo, hi = dml_plr(Y, rng.permutation(T), W, sku)
     return th, lo, hi
