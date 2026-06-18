@@ -1,4 +1,4 @@
-"""Слой 2. Причинный отклик на скидку: DML, CATE, доза-отклик, неопределённость, плацебо."""
+
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
@@ -11,7 +11,7 @@ from src.layer2_causal import (build_design, dml_plr, cate_by_category,
 if __name__ == "__main__":
     panel = build_panel()
     pf = add_features(panel)
-    emb = e5_embeddings(load_catalog())           # опционально
+    emb = e5_embeddings(load_catalog())          
     if emb is not None:
         pf = pf.merge(emb, on="Головное СКЮ Артикул", how="left")
         for c in [c for c in emb.columns if c.startswith("emb_")]:
