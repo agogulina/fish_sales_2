@@ -1,9 +1,7 @@
 """
-Исследовательский блок Слоя 1 — проверка каннибализации.
-Отнимает ли скидка на товар продажи у его субститута?
-Три независимых оценивателя: бутстрэп (within), фиксированные эффекты с
-кластерными SE, Double ML. Плюс позитивный контроль (собственная скидка).
+Проверка каннибализации.
 """
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -14,11 +12,6 @@ from src.layer2_causal import dml_plr
 
 
 def build_substitute_pressure(panel: pd.DataFrame, groups: pd.Series):
-    """
-    Для каждой строки считает 'давление субститутов': средняя скидка по другим
-    товарам той же семантической группы в том же клиенте и месяце.
-    `groups` — Series index=COL_SKU -> группа (из Слоя 1 / 'Группа new').
-    """
     df = panel.copy()
     df["grp"] = df[COL_SKU].map(groups).fillna("—")
     # суммарная и количественная скидка по группе×клиент×месяц
@@ -31,7 +24,6 @@ def build_substitute_pressure(panel: pd.DataFrame, groups: pd.Series):
 
 
 def within_bootstrap(df: pd.DataFrame, seed=RANDOM_STATE, nboot=300):
-    """Внутри-товарная демировка + кластерный бутстрэп по SKU. -> (coef, lo, hi)."""
     d = df.copy()
     d["y"] = np.log1p(d["qty"].clip(lower=0))
     # демировка по SKU×клиент (within)
@@ -52,7 +44,6 @@ def within_bootstrap(df: pd.DataFrame, seed=RANDOM_STATE, nboot=300):
 
 
 def fe_cluster_se(df: pd.DataFrame, by_cat_month=False):
-    """Фиксированные эффекты (SKU + месяц или SKU + Категория×месяц) с кластерными SE по SKU."""
     try:
         import statsmodels.formula.api as smf
     except Exception as e:                              # noqa
