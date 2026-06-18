@@ -8,7 +8,6 @@ from config import COL_SKU, COL_CLIENT, COL_NAME, E5_MODEL, EMB_DIM, RANDOM_STAT
 
 # временные признаки
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Лаги (1/2/3/6/12), скользящие средние/станд., сезонность. Вход: панель с 'qty','month'."""
     out = df.copy().sort_values([COL_SKU, COL_CLIENT, "month"])
     out["month_num"] = out["month"].dt.month.astype(int)
     out["quarter"]   = out["month"].dt.quarter.astype(int)
