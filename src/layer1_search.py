@@ -1,8 +1,5 @@
 """
 Слой 1 — семантический поиск товаров.
-Шесть методов (от наивного к LLM), метрики ранжирования и проверка значимости.
-Тяжёлые модели (e5, реранкер, LLM, pymorphy3, rapidfuzz, faiss) подключаются
-по возможности; при их отсутствии соответствующие методы пропускаются.
 """
 import re, math
 import numpy as np
@@ -12,7 +9,7 @@ from config import (COL_NAME, COL_CAT, COL_GROUP, E5_MODEL, RERANKER_MODEL,
                     K, CAND_POOL, RANDOM_STATE)
 from src.features import PRODUCT_HEADS, product_head
 
-# ------------------------------------------------- лексическая нормализация
+# лексическая нормализация
 ABBREV = {"с/с": " слабосоленый ", "п/п": " пряного посола ", "пр/посола": " пряного посола ",
           "пр/п": " пряного посола ", "в/у": " вакуумная упаковка ", "в/м": " в масле ",
           "г/к": " горячего копчения ", "х/к": " холодного копчения "}
@@ -23,24 +20,23 @@ try:
     from rapidfuzz import fuzz
     _morph = pymorphy3.MorphAnalyzer()
     _LEX_OK = True
-except Exception:                                       # noqa
+except Exception:                                      
     _morph, fuzz, _LEX_OK = None, None, False
 
 
 def normalize_name(text: str) -> str:
-    """Нижний регистр, раскрытие сокращений, удаление чисел/пунктуации, лемматизация, сортировка токенов."""
     t = str(text).lower().replace("ё", "е")
     for k, v in ABBREV.items():
         t = t.replace(k, v)
-    t = re.sub(r"\d+[.,]?\d*", " ", t)       # числа и размеры -> убираем
-    t = re.sub(r"[^a-zа-я\s]", " ", t)        # пунктуация, дроби фасовки -> убираем
+    t = re.sub(r"\d+[.,]?\d*", " ", t)      
+    t = re.sub(r"[^a-zа-я\s]", " ", t)        
     toks = [w for w in t.split() if w not in STOP and len(w) > 1]
     if _LEX_OK:
         toks = [_morph.parse(w)[0].normal_form for w in toks]
     return " ".join(sorted(set(toks)))
 
 
-# ------------------------------------------------- атрибуты (структурный метод)
+# атрибуты (структурный метод)
 ATTR_PATTERNS = {
     "обработка": {"маринованный": ["маринован", "маринад"],
                   "копченый": ["копчен", "горячего копчения", "холодного копчения", "г/к", "х/к"],
@@ -79,9 +75,7 @@ def structured_score(qa: dict, da: dict) -> float:
     return s
 
 
-# =================================================================
 class SearchEngine:
-    """Каталог + все методы поиска. Тяжёлые модели грузятся лениво и опционально."""
 
     def __init__(self, catalog: pd.DataFrame):
         self.cat = catalog.reset_index(drop=True).copy()
@@ -91,7 +85,7 @@ class SearchEngine:
         self._embedder = self._index = self._reranker = None
         self._build_category_baseline()
 
-    # ----- 0. baseline по корню слова (категория из наименования)
+    #  baseline по корню слова 
     def _build_category_baseline(self):
         cats = sorted(self.cat[COL_CAT].dropna().unique().tolist())
         self._categories = cats
@@ -128,7 +122,7 @@ class SearchEngine:
         order = np.argsort(-sc)
         return self.ids[order], sc[order]
 
-    # ----- 1. лексический
+    # 1. лексический
     def retrieve_lexical(self, query, **kw):
         if not _LEX_OK:
             return self.ids, np.zeros(len(self.ids))
@@ -137,7 +131,7 @@ class SearchEngine:
         order = np.argsort(-sc)
         return self.ids[order], sc[order]
 
-    # ----- 2. плотный e5 + FAISS
+    # 2. плотный e5 + FAISS
     def _ensure_dense(self):
         if self._embedder is not None:
             return True
@@ -163,7 +157,7 @@ class SearchEngine:
         sims, idx = self._index.search(qv, k)
         return self.ids[idx[0]], sims[0]
 
-    # ----- 3. e5 + реранкер (лучший метод)
+    # 3. e5 + реранкер 
     def _ensure_reranker(self):
         if self._reranker is not None:
             return True
@@ -173,7 +167,7 @@ class SearchEngine:
             dev = "cuda" if torch.cuda.is_available() else "cpu"
             self._reranker = CrossEncoder(RERANKER_MODEL, device=dev, max_length=256)
             return True
-        except Exception as e:                          # noqa
+        except Exception as e:                         
             print("Реранкер недоступен:", repr(e)); return False
 
     def retrieve_rerank(self, query, candidate_pool=CAND_POOL, **kw):
@@ -190,14 +184,14 @@ class SearchEngine:
         sc = np.concatenate([rsc, np.full(len(rest), rsc.min() - 1.0)])
         return ids, sc
 
-    # ----- 4. структурный (правила)
+    # 4. структурный (правила)
     def retrieve_structured(self, query, **kw):
         qa = extract_attributes(query)
         sc = self.cat["attrs"].apply(lambda da: structured_score(qa, da)).to_numpy(float)
         order = np.argsort(-sc)
         return self.ids[order], sc[order]
 
-    # ----- методы как словарь
+    # методы как словарь
     def methods(self):
         return {
             "Категорийный baseline": self.retrieve_category_baseline,
@@ -207,7 +201,7 @@ class SearchEngine:
             "Структурный (правила)": self.retrieve_structured,
         }
 
-    # ----- продакшн-функция
+
     def find_products(self, query, threshold=None, pool=CAND_POOL, topk=None):
         ids, sc = self.retrieve_rerank(query, candidate_pool=pool)
         df = self.cat.set_index("doc_id").loc[list(ids)][[COL_NAME, COL_CAT, COL_GROUP]].copy()
@@ -216,8 +210,6 @@ class SearchEngine:
             df = df[df["score"] >= threshold]
         return df.head(topk) if topk else df
 
-
-# =================================================================
 # метрики ранжирования
 def p_at_k(r, rel, k): return len(set(r[:k]) & rel) / k
 def r_at_k(r, rel, k): return len(set(r[:k]) & rel) / len(rel) if rel else 0.0
@@ -241,7 +233,6 @@ def ndcg_at_k(r, rel, k):
 
 
 def evaluate(engine: "SearchEngine", queries, gold, k=K):
-    """queries=[(текст, predicate)], gold={текст:set(doc_id)}. Возвращает (summary, per_query_ap)."""
     methods = engine.methods()
     rows, per_q = [], {m: [] for m in methods}
     for q, _ in queries:
@@ -260,7 +251,6 @@ def evaluate(engine: "SearchEngine", queries, gold, k=K):
 
 
 def significance(per_query_ap):
-    """Тест Фридмана + (если есть scikit_posthocs) Неменьи. Возвращает словарь с результатами."""
     from scipy.stats import friedmanchisquare
     ms = list(per_query_ap)
     AP = np.array([per_query_ap[m] for m in ms])
@@ -274,6 +264,6 @@ def significance(per_query_ap):
         nem = sp.posthoc_nemenyi_friedman(ap_df.values)
         nem.index = ms; nem.columns = ms
         out["nemenyi"] = nem
-    except Exception:                                   # noqa
+    except Exception:                                  
         out["nemenyi"] = None
     return out
