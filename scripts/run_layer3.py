@@ -1,4 +1,4 @@
-"""Слой 3. Оптимизатор промо: экономика, оптимизатор, off-policy при равном бюджете."""
+
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, pandas as pd
