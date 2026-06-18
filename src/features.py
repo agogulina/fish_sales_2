@@ -1,7 +1,4 @@
-"""
-Признаки для моделей: лаги/скользящие/сезонность, парсер веса из наименований,
-словарь продуктов и (опционально) семантические эмбеддинги e5.
-"""
+
 import re
 import numpy as np
 import pandas as pd
@@ -9,7 +6,7 @@ import pandas as pd
 from config import COL_SKU, COL_CLIENT, COL_NAME, E5_MODEL, EMB_DIM, RANDOM_STATE
 
 
-# ----------------------------------------------------------------- временные признаки
+# временные признаки
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """Лаги (1/2/3/6/12), скользящие средние/станд., сезонность. Вход: панель с 'qty','month'."""
     out = df.copy().sort_values([COL_SKU, COL_CLIENT, "month"])
@@ -35,11 +32,10 @@ LAG_COLS    = ["lag_qty_1", "lag_qty_2", "lag_qty_3", "lag_qty_6", "lag_qty_12",
                "roll3_qty_mean", "roll6_qty_mean", "roll3_qty_std"]
 
 
-# ----------------------------------------------------------------- вес из наименования
+# вес из наименования
 def parse_weight_g(name):
-    """Возвращает (способ, вес_в_граммах|nan). Упаковочные дроби '1/6' игнорируются."""
     t = str(name).lower().replace("ё", "е").replace(",", ".")
-    t = re.sub(r"\b\d+\s*/\s*\d+\b", " ", t)          # убрать '1/6','1/8' (штук в коробе)
+    t = re.sub(r"\b\d+\s*/\s*\d+\b", " ", t)       
     if re.search(r"\bвес\b|весов", t):
         return ("весовой", np.nan)
     m = re.search(r"(\d+(?:\.\d+)?)\s*кг", t)
@@ -48,18 +44,18 @@ def parse_weight_g(name):
     m = re.search(r"(\d+(?:\.\d+)?)\s*гр?\b", t)
     if m:
         return ("г", float(m.group(1)))
-    m = re.search(r"(?<![\d.])(\d\.\d+)(?![\d])", t)   # голое десятичное -> кг
+    m = re.search(r"(?<![\d.])(\d\.\d+)(?![\d])", t)   
     if m:
         v = float(m.group(1))
         return ("голое-кг", v * 1000) if 0.02 <= v <= 5 else ("нет", np.nan)
-    m = re.search(r"(?<![\d.])(\d{2,4})(?![\d./])", t) # голое целое -> граммы
+    m = re.search(r"(?<![\d.])(\d{2,4})(?![\d./])", t)
     if m:
         v = float(m.group(1))
         return ("голое-г", v) if 50 <= v <= 2000 else ("нет", np.nan)
     return ("нет", np.nan)
 
 
-# ----------------------------------------------------------------- словарь продуктов
+# словарь продуктов
 PRODUCT_HEADS = {
     "имбирь": "имбирь", "анчоус": "анчоус", "хамса": "анчоус", "килька": "килька", "икра": "икра",
     "капуста": "морская капуста", "скумбрия": "скумбрия", "сельдь": "сельдь", "семга": "семга",
@@ -74,7 +70,6 @@ PRODUCT_HEADS = {
 
 
 def product_head(name):
-    """Грубый «продукт» из наименования (для сопоставления цен и группировки)."""
     t = str(name).lower().replace("ё", "е")
     for k, c in PRODUCT_HEADS.items():
         if k in t:
@@ -82,12 +77,8 @@ def product_head(name):
     return None
 
 
-# ----------------------------------------------------------------- эмбеддинги e5 (опционально)
+# эмбеддинги e5 
 def e5_embeddings(catalog: pd.DataFrame, dim=EMB_DIM):
-    """
-    Эмбеддинги наименований моделью e5 -> PCA до `dim` признаков.
-    Возвращает DataFrame [COL_SKU, emb_0..emb_{dim-1}] или None, если модель недоступна.
-    """
     try:
         from sentence_transformers import SentenceTransformer
         from sklearn.decomposition import PCA
@@ -103,6 +94,6 @@ def e5_embeddings(catalog: pd.DataFrame, dim=EMB_DIM):
         out = pd.DataFrame(Ep, columns=cols)
         out[COL_SKU] = names[COL_SKU].values
         return out
-    except Exception as e:                              # noqa
+    except Exception as e:                             
         print("e5 недоступна -> работаем без семантических признаков:", repr(e))
         return None
