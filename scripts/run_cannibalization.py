@@ -1,4 +1,4 @@
-"""Слой 1 (доп.). Проверка каннибализации тремя оценивателями."""
+
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
@@ -23,5 +23,4 @@ if __name__ == "__main__":
 
     th, se, p, lo2, hi2 = dml_cannibalization(df)
     print(f"[Double ML]          эффект субститутов = {th:+.4f}  CI=[{lo2:+.4f},{hi2:+.4f}]")
-    print("\nВывод: положительный знак во всех трёх -> каннибализация НЕ обнаружена "
-          "(на месячных данных маскируется категорийными акциями).")
+
