@@ -1,7 +1,6 @@
 """
 Сопоставление цен: из прайса розничной сети получаем цену за кг по продукту и
 переносим её на наши SKU (с нормировкой на вес из наименования).
-Главный артефакт — таблица 'prices_sku_matching.xlsx'.
 """
 import numpy as np
 import pandas as pd
@@ -12,11 +11,6 @@ from src.features import parse_weight_g, product_head
 
 
 def load_lenta_prices(xlsx=LENTA_PRICE_XLSX, sheet="Задача 1"):
-    """
-    Читает прайс сети: возвращает DataFrame [name, вход_шт, полка_шт].
-    Структура листа: данные с 6-й строки, итоговые цены — столбцы 57/58, наименование — столбец 1.
-    Подправьте индексы под свой файл при необходимости.
-    """
     raw = pd.read_excel(xlsx, sheet_name=sheet, header=None)
     df = raw.iloc[5:].copy(); df.columns = range(raw.shape[1])
     pl = df[[1, 57, 58]].copy(); pl.columns = ["name", "вход_шт", "полка_шт"]
@@ -27,7 +21,6 @@ def load_lenta_prices(xlsx=LENTA_PRICE_XLSX, sheet="Задача 1"):
 
 
 def price_per_kg_by_product(price_df: pd.DataFrame, lo=100, hi=15000):
-    """Цена за кг = цена/шт ÷ вес; агрегируем медиану по продукту. -> (byhead, glob_in, glob_sh)."""
     pl = price_df.copy()
     pl["вес_г"] = pl["name"].map(lambda n: parse_weight_g(n)[1])
     pl["продукт"] = pl["name"].map(product_head)
@@ -42,7 +35,6 @@ def price_per_kg_by_product(price_df: pd.DataFrame, lo=100, hi=15000):
 
 
 def build_price_table(sales_csv=SALES_CSV, lenta_xlsx=LENTA_PRICE_XLSX, out=PRICE_TABLE_XLSX):
-    """Собирает таблицу цен по нашим SKU и сохраняет xlsx. Возвращает (df, summary)."""
     s = pd.read_csv(sales_csv)
     ours = (s[[COL_SKU, COL_NAME, COL_CAT, COL_GROUP]].dropna(subset=[COL_NAME])
             .drop_duplicates(COL_SKU).reset_index(drop=True))
