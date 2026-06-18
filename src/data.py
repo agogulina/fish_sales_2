@@ -1,6 +1,5 @@
 """
 Загрузка данных и построение помесячной панели.
-Содержит общие помощники, которыми пользуются все слои.
 """
 import os, glob
 import numpy as np
@@ -11,16 +10,13 @@ from config import (COL_SKU, COL_NAME, COL_CLIENT, COL_DATE, COL_QTY,
                     COL_PDISC, OPT_CATS, SALES_CSV, PROMO_SALES_CSV, PROMO_FINAL_CSV)
 
 
-# ----------------------------------------------------------------- помощники
 def safe_num(s: pd.Series) -> pd.Series:
-    """Числа в русском формате ('1 234,5') -> float."""
     if s.dtype == "O":
         s = s.astype(str).str.replace(" ", "", regex=False).str.replace(",", ".", regex=False)
     return pd.to_numeric(s, errors="coerce")
 
 
 def to_month(dt) -> pd.Series:
-    """Любая дата -> первое число месяца."""
     return pd.to_datetime(dt, dayfirst=True, errors="coerce").dt.to_period("M").dt.to_timestamp()
 
 
@@ -36,9 +32,7 @@ def first_existing(patterns):
     return None
 
 
-# ----------------------------------------------------------------- каталог (Слой 1)
 def load_catalog(sales_csv=SALES_CSV, promo_sales_csv=PROMO_SALES_CSV) -> pd.DataFrame:
-    """Уникальный каталог товаров (SKU + наименование + категория/группа/тип)."""
     frames = []
     for path in [sales_csv, promo_sales_csv]:
         if path and os.path.exists(path):
@@ -57,9 +51,7 @@ def load_catalog(sales_csv=SALES_CSV, promo_sales_csv=PROMO_SALES_CSV) -> pd.Dat
     return catalog
 
 
-# ----------------------------------------------------------------- помесячная панель (Слои 2–3)
 def agg_monthly(df: pd.DataFrame, qty_col: str) -> pd.DataFrame:
-    """Сумма продаж по SKU×клиент×месяц + наиболее частые категориальные метки."""
     d = df.copy()
     d[COL_DATE] = to_month(d[COL_DATE])
     d[COL_QTY] = safe_num(d[COL_QTY]).fillna(0.0)
@@ -72,7 +64,6 @@ def agg_monthly(df: pd.DataFrame, qty_col: str) -> pd.DataFrame:
 
 
 def load_discounts(promo_final_csv=PROMO_FINAL_CSV) -> pd.DataFrame:
-    """Недельные скидки -> помесячный max % скидки (лечение для Слоёв 2–3)."""
     pf = pd.read_csv(promo_final_csv)
     pf[COL_WSTART] = pd.to_datetime(pf[COL_WSTART], dayfirst=True, errors="coerce")
     pf["month"] = pf[COL_WSTART].dt.to_period("M").dt.to_timestamp()
@@ -87,7 +78,6 @@ def load_discounts(promo_final_csv=PROMO_FINAL_CSV) -> pd.DataFrame:
 
 
 def build_panel(sales_csv=SALES_CSV, promo_final_csv=PROMO_FINAL_CSV) -> pd.DataFrame:
-    """Помесячная панель: продажи + категория + глубина скидки."""
     sales = pd.read_csv(sales_csv)
     sm = agg_monthly(sales, "qty")
     sm[COL_SKU] = sm[COL_SKU].astype(str)
