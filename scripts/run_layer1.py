@@ -6,8 +6,7 @@ from config import COL_GROUP
 from src.data import load_catalog
 from src.layer1_search import SearchEngine, evaluate, significance
 
-# Тестовые запросы и эталон (по человеческой разметке Группа new).
-# При необходимости отредактируйте список под свои группы.
+# Тестовые запросы и эталон (по разметке Группа new).
 def g_eq(v):         return lambda g: str(g) == v
 def g_contains(s):   return lambda g: s.lower() in str(g).lower()
 def g_startswith(p): return lambda g: str(g).startswith(p)
