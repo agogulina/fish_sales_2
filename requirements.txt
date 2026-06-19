@@ -12,13 +12,13 @@ faiss-cpu>=1.7
 rapidfuzz>=3.0
 pymorphy3>=1.2
 scikit-posthocs>=0.7
-# transformers, accelerate, bitsandbytes  # только для LLM-метода (опционально)
+# transformers, accelerate, bitsandbytes  # только для LLM-метода 
 
 # Слой 2 (причинность)
 statsmodels>=0.14
-# econml>=0.14   # CATE causal forest (опционально)
-# dowhy>=0.11    # refutation (опционально)
-# mapie>=0.8     # конформные интервалы (опционально)
+# econml>=0.14   # CATE causal forest 
+# dowhy>=0.11    # refutation 
+# mapie>=0.8     # конформные интервалы 
 
 # Слой 3 (оптимизация)
 pulp>=2.7
